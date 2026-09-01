@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 标注员工薪酬结算工具</title>
+<style>
+  :root {
+    --primary: #2f6fed;
+    --primary-dark: #1f56c8;
+    --bg: #f3f6fb;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1f2937;
+    --muted: #6b7280;
+    --ok: #16a34a;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --shadow: 0 1px 3px rgba(16,24,40,.08), 0 1px 2px rgba(16,24,40,.04);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+  .header { background: linear-gradient(135deg, #1e3a8a, #2f6fed); color: #fff; padding: 18px 28px; box-shadow: var(--shadow); }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header .sub { font-size: 12px; opacity: .85; margin-top: 4px; }
+  .steps { display: flex; gap: 10px; padding: 14px 28px 0; flex-wrap: wrap; }
+  .step-btn { background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 8px 18px; cursor: pointer; font-size: 14px; color: var(--muted); box-shadow: var(--shadow); transition: all .15s; }
+  .step-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .step-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+  .container { max-width: 1500px; margin: 0 auto; padding: 20px 28px 60px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); padding: 20px; margin-top: 18px; }
+  .card h2 { font-size: 16px; margin-bottom: 14px; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; }
+  .badge.blue { background: #e8f0fe; color: var(--primary-dark); }
+  .badge.green { background: #e6f7ee; color: var(--ok); }
+  .badge.orange { background: #fdf1e2; color: var(--warn); }
+  .badge.red { background: #fdeaea; color: var(--danger); }
+  .btn { background: var(--primary); color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 14px; cursor: pointer; }
+  .btn:hover { background: var(--primary-dark); }
+  .btn.ghost { background: #fff; color: var(--primary); border: 1px solid var(--primary); }
+  .btn.small { padding: 5px 12px; font-size: 13px; }
+  .btn:disabled { opacity: .55; cursor: not-allowed; }
+  .grid-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; }
+  .metric { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; box-shadow: var(--shadow); }
+  .metric .num { font-size: 26px; font-weight: 700; color: var(--primary-dark); margin-top: 4px; }
+  .metric .lbl { color: var(--muted); font-size: 13px; }
+  .dropzone { border: 2px dashed #b9c8e8; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; background: #f8fbff; transition: all .15s; }
+  .dropzone.dragover { border-color: var(--primary); background: #eef4ff; }
+  .dropzone .big { font-size: 15px; font-weight: 600; }
+  .dropzone .small { color: var(--muted); margin-top: 6px; font-size: 13px; }
+  .toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tab { padding: 7px 16px; border-radius: 8px; background: #f1f5f9; border: 1px solid var(--border); cursor: pointer; }
+  .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .table-wrap { overflow: auto; max-height: 520px; border: 1px solid var(--border); border-radius: 8px; }
+  table { border-collapse: collapse; min-width: 100%; font-size: 13px; }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; white-space: nowrap; text-align: right; }
+  th { background: #f8fafc; position: sticky; top: 0; z-index: 2; font-weight: 600; }
+  th:first-child, td:first-child { position: sticky; left: 0; background: #f8fafc; text-align: left; z-index: 1; font-weight: 600; }
+  th:first-child { z-index: 3; }
+  tr.row-total td { background: #fff7e6; font-weight: 600; }
+  .empty { color: var(--muted); padding: 24px; text-align: center; }
+  .msg { padding: 12px 16px; border-radius: 8px; margin-top: 12px; }
+  .msg.err { background: #fdeaea; color: var(--danger); }
+  .msg.ok { background: #e6f7ee; color: var(--ok); }
+  .msg.info { background: #e8f0fe; color: var(--primary-dark); }
+  .msg.warn { background: #fdf1e2; color: var(--warn); }
+  .detail-item { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 13px; }
+  .detail-item .src { min-width: 150px; color: var(--muted); }
+  .price-row { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .price-row:nth-child(odd) { background: #fafcff; }
+  .price-row input { width: 110px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; text-align: right; }
+  .price-group-title { background: #eef4ff; padding: 8px 12px; border-radius: 8px; margin: 16px 0 6px; font-weight: 600; color: var(--primary-dark); }
+  .filter-box { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; width: 260px; }
+  .tag { font-size: 12px; color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>AI 标注员工薪酬结算工具</h1>
+  <div class="sub">上传标注统计 Excel → 统计题数 → 设置单价 → 生成税前薪酬表</div>
+</div>
+
+<div class="steps">
+  <button class="step-btn active" data-step="1">① 上传与统计</button>
+  <button class="step-btn" data-step="2">② 单价设置</button>
+  <button class="step-btn" data-step="3">③ 税前薪酬</button>
+</div>
+
+<div class="container">
+
+  <!-- 步骤1：上传与统计 -->
+  <section id="step-1">
+    <div class="card">
+      <h2>上传标注统计文件</h2>
+      <div class="dropzone" id="dropzone">
+        <div class="big">点击选择或拖入 Excel 文件（.xls / .xlsx）</div>
+        <div class="small">支持大文件（如几百 MB 的带截图统计表），解析时只读取数值、速度很快</div>
+        <input type="file" id="file-input" accept=".xls,.xlsx,.xlsm" style="display:none">
+      </div>
+      <div class="toolbar" style="margin-top:14px">
+        <button class="btn" id="upload-btn">开始统计</button>
+        <span class="muted" id="upload-status"></span>
+      </div>
+    </div>
+
+    <div id="stats-area" class="hidden">
+      <div class="card">
+        <h2>统计概览</h2>
+        <div class="grid-cards" id="overview-cards"></div>
+      </div>
+
+      <div class="card">
+        <h2>各表小计</h2>
+        <div class="table-wrap">
+          <table id="sheet-totals-table"></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <h2 style="margin:0">工作量筛选</h2>
+          <select class="filter-box" id="flt-month"><option value="">全部月份</option></select>
+          <select class="filter-box" id="flt-emp"><option value="">全部员工</option></select>
+          <select class="filter-box" id="flt-proj"><option value="">全部项目</option></select>
+          <select class="filter-box" id="flt-qty">
+            <option value="">全部题数</option>
+            <option value="0-99">0 – 99 题</option>
+            <option value="100-499">100 – 499 题</option>
+            <option value="500-999">500 – 999 题</option>
+            <option value="1000-4999">1,000 – 4,999 题</option>
+            <option value="5000-">≥ 5,000 题</option>
+          </select>
+          <span class="muted" id="flt-info"></span>
+          <div style="flex:1"></div>
+          <button class="btn small ghost" onclick="exportFilterCsv()">导出筛选结果(CSV)</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-bottom:10px">按月份、员工、项目或题数区间筛选工作量。</div>
+        <div class="table-wrap" id="flt-table-wrap"></div>
+        <div style="margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+          <h2 style="font-size:15px;margin-bottom:6px">异常数据（供人工核算）</h2>
+          <div class="toolbar" style="margin-bottom:6px">
+            <div class="muted" style="font-size:12px">以下为被跳过或带提示的行（已隐藏整行全空的空行）：跳过行未计入统计，提示行已计入但需人工确认。</div>
+            <div style="flex:1"></div>
+            <select class="filter-box" id="abn-month" style="width:180px"><option value="">全部月份</option></select>
+            <span class="muted" id="abn-count"></span>
+          </div>
+          <div class="table-wrap" id="flt-abnormal-wrap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toolbar">
+          <button class="btn small ghost" id="toggle-detail">显示/隐藏 原始明细</button>
+          <div style="flex:1"></div>
+          <button class="btn small ghost" onclick="exportFile('detail','xlsx')">导出明细 Excel</button>
+          <button class="btn small ghost" onclick="exportFile('detail','csv')">导出明细 CSV</button>
+        </div>
+        <div class="muted" style="margin-top:6px;font-size:12px">共 <span id="detail-count">0</span> 条有效记录（明细超过 500 条时仅预览，可导出完整明细）</div>
+        <div class="table-wrap hidden" id="detail-wrap" style="margin-top:10px"></div>
+      </div>
+
+      <div class="card" id="skip-warn-card">
+        <h2>跳过与提示</h2>
+        <div id="skip-warn-content"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 步骤2：单价设置 -->
+  <section id="step-2" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">项目单价设置（元/题）</h2>
+        <input class="filter-box" id="price-filter" placeholder="输入大类名称筛选…">
+        <span class="muted" id="price-count"></span>
+        <div style="flex:1"></div>
+        <button class="btn" id="save-prices-btn">保存单价</button>
+      </div>
+      <div class="msg info">每个大类（工作表）只需设一个统一单价，自动应用到该大类下全部项目；未设置的大类在税前薪酬中金额按 0 计算并提示。</div>
+      <div id="price-list"></div>
+    </div>
+  </section>
+
+  <!-- 步骤3：税前薪酬 -->
+  <section id="step-3" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">税前薪酬（按月）</h2>
+        <div class="tabs" id="tax-month-tabs"></div>
+        <span class="muted" id="tax-info"></span>
+        <div style="flex:1"></div>
+        <button class="btn" id="save-abn-btn">保存异常金额</button>
+        <button class="btn small ghost" onclick="exportTaxCsv()">导出 CSV</button>
+      </div>
+      <div class="msg warn hidden" id="tax-missing"></div>
+      <div class="muted" style="font-size:12px;margin-bottom:10px">应发税前薪酬 = 当月各项目（完成数 × 单价）合计 + 当月异常表单统计金额（手工填写）。项目单价在②单价设置里填。</div>
+      <div class="table-wrap" id="tax-table-wrap"></div>
+      <div class="metric" style="margin-top:16px">
+        <div class="lbl">本月总员工应发税前薪酬（元）</div>
+        <div class="num" id="tax-grand">—</div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+let CURRENT = { month: null, months: [], projects: [], employees: [] };
+
+function fmt(n) {
+  if (n === null || n === undefined || n === "") return "—";
+  const x = Number(n);
+  if (!isFinite(x)) return String(n);
+  return x.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}
+
+async function api(url, opts) {
+  const res = await fetch(url, opts);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "请求失败");
+  return data;
+}
+
+function showStatus(el, text, cls) {
+  el.textContent = text;
+  el.className = cls || "";
+}
+
+/* ---------- 步骤切换 ---------- */
+document.querySelectorAll(".step-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".step-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    for (let i = 1; i <= 3; i++) $("#step-" + i).classList.toggle("hidden", String(i) !== btn.dataset.step);
+    if (btn.dataset.step === "2") loadPrices();
+    if (btn.dataset.step === "3") loadTax();
+  });
+});
+
+/* ---------- 上传 ---------- */
+const dz = $("#dropzone"), fi = $("#file-input");
+dz.addEventListener("click", () => fi.click());
+dz.addEventListener("dragover", (e) => { e.preventDefault(); dz.classList.add("dragover"); });
+dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
+dz.addEventListener("drop", (e) => {
+  e.preventDefault(); dz.classList.remove("dragover");
+  if (e.dataTransfer.files.length) fi.files = e.dataTransfer.files;
+});
+fi.addEventListener("change", () => {
+  if (fi.files.length) $("#upload-status").textContent = "已选择：" + fi.files[0].name;
+});
+
+$("#upload-btn").addEventListener("click", async () => {
+  const file = fi.files[0];
+  if (!file) { alert("请先选择 Excel 文件"); return; }
+  const status = $("#upload-status");
+  showStatus(status, "正在解析，请稍候…", "muted");
+  $("#upload-btn").disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    const data = await api("/api/upload", { method: "POST", body: fd });
+    showStatus(status, "解析完成：共 " + fmt(data.summary.record_count) + " 条有效记录", "msg ok");
+    await loadStats("");
+  } catch (err) {
+    showStatus(status, "解析失败：" + err.message, "msg err");
+  } finally {
+    $("#upload-btn").disabled = false;
+  }
+});
+
+/* ---------- 统计展示 ---------- */
+function renderCards(summary) {
+  const cards = [
+    ["总题数", fmt(summary.total_qty)],
+    ["员工数", summary.employee_count],
+    ["项目数", summary.project_count],
+    ["有效记录", summary.record_count],
+    ["跳过行数", summary.skipped_count],
+    ["提示数", summary.warning_count],
+  ];
+  $("#overview-cards").innerHTML = cards.map(([l, n]) =>
+    '<div class="metric"><div class="lbl">' + l + '</div><div class="num">' + n + '</div></div>').join("");
+}
+
+function renderSheetTotals(totals) {
+  const rows = Object.entries(totals).map(([name, t]) =>
+    "<tr><td>" + name + "</td><td>" + t.rows + "</td><td>" + fmt(t.qty) + "</td><td>" + t.skipped + "</td></tr>").join("");
+  $("#sheet-totals-table").innerHTML =
+    "<thead><tr><th>工作表</th><th>有效记录数</th><th>题数合计</th><th>跳过行数</th></tr></thead><tbody>" + rows + "</tbody>";
+}
+
+async function loadStats() {
+  try {
+    const d = await api("/api/stats");
+    CURRENT.stats = d;
+    $("#stats-area").classList.remove("hidden");
+    renderCards(d.summary);
+    renderSheetTotals(d.sheet_totals);
+    $("#detail-count").textContent = d.record_count;
+    renderDetail(d.records_preview);
+    renderSkipWarn(d);
+    loadFilterWorkload("");
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function loadFilterWorkload(month) {
+  try {
+    const d = await api("/api/workload?month=" + encodeURIComponent(month || ""));
+    CURRENT.wl = d;
+    initFilter(d);
+    renderAbnormal(CURRENT.stats);
+  } catch (err) { /* 未上传时忽略 */ }
+}
+
+function renderDetail(records) {
+  const head = "<thead><tr><th>月份</th><th>日期</th><th>来源表</th><th>员工</th><th>账户</th><th>任务名称</th><th>任务ID</th><th>子队列</th><th>原始值</th><th>系数</th><th>题数</th><th>备注</th></tr></thead>";
+  const body = records.map((r) => "<tr><td>" + r.month + "</td><td>" + (r.date || "—") + "</td><td>" + r.sheet + "</td><td>" + r.employee +
+    "</td><td>" + (r.account || "—") + "</td><td>" + (r.task_name || "—") + "</td><td>" + (r.task_id || "—") + "</td><td>" + (r.sub_queue || "—") +
+    "</td><td>" + fmt(r.raw_qty) + "</td><td>" + r.factor + "</td><td>" + fmt(r.qty) + "</td><td style='text-align:left'>" + (r.remark || "—") + "</td></tr>").join("");
+  $("#detail-wrap").innerHTML = "<table>" + head + "<tbody>" + body + "</tbody></table>";
+}
+
+$("#toggle-detail").addEventListener("click", () => $("#detail-wrap").classList.toggle("hidden"));
+
+function renderSkipWarn(d) {
+  let html = "";
+  const reasonCount = {};
+  d.skipped.forEach((s) => reasonCount[s.reason] = (reasonCount[s.reason] || 0) + 1);
+  const reasons = Object.entries(reasonCount).map(([k, v]) => "<span class='badge orange'>" + k + " × " + v + "</span>").join(" ");
+  html += "<div class='toolbar'><div><b>跳过行数：</b>" + d.skipped_total + "　" + reasons + "</div></div>";
+  if (d.skipped.length) {
+    html += "<div class='table-wrap' style='max-height:220px'><table><thead><tr><th>来源表</th><th>行号</th><th>原因</th></tr></thead><tbody>" +
+      d.skipped.slice(0, 200).map((s) => "<tr><td>" + s.sheet + "</td><td>" + s.row + "</td><td>" + s.reason + "</td></tr>").join("") +
+      "</tbody></table></div>";
+  }
+  if (d.warnings.length) {
+    html += "<div style='margin-top:12px'><b>提示（" + d.warnings.length + " 条）：</b></div>";
+    html += d.warnings.slice(0, 100).map((w) =>
+      "<div class='detail-item'><span class='src'>" + w.sheet + (w.row ? " 第" + w.row + "行" : "") + "</span><span class='badge orange'>" + w.type + "</span><span>" + w.message + "</span></div>").join("");
+  }
+  $("#skip-warn-content").innerHTML = html || '<div class="muted">没有跳过或提示。</div>';
+}
+
+/* ---------- 工作量筛选 ---------- */
+let FLT = { details: [], projLabel: {}, employees: [] };
+
+function initFilter(wl) {
+  FLT.details = wl.details || [];
+  FLT.projLabel = {};
+  (wl.projects || []).forEach((p) => FLT.projLabel[p.key] = p.label || p.key);
+  FLT.employees = (wl.employees || []).slice();
+  const prevEmp = $("#flt-emp").value || "";
+  const prevProj = $("#flt-proj").value || "";
+  $("#flt-emp").innerHTML = '<option value="">全部员工</option>' +
+    FLT.employees.map((e) => '<option value="' + e + '">' + e + "</option>").join("");
+  $("#flt-proj").innerHTML = '<option value="">全部项目</option>' +
+    (wl.projects || []).map((p) => '<option value="' + p.key + '">' + p.label + "</option>").join("");
+  $("#flt-month").innerHTML = '<option value="">全部月份</option>' +
+    (wl.months || []).map((m) => '<option value="' + m + '">' + m + "</option>").join("");
+  $("#flt-emp").value = prevEmp;
+  $("#flt-proj").value = prevProj;
+  $("#flt-month").value = wl.selected_month || "";
+  renderFilter();
+}
+
+function getFilteredRows() {
+  const emp = $("#flt-emp").value;
+  const proj = $("#flt-proj").value;
+  const qty = $("#flt-qty").value;
+  let rows = FLT.details.filter((d) => {
+    if (emp && d.employee !== emp) return false;
+    if (proj && d.project_key !== proj) return false;
+    if (qty) {
+      const parts = qty.split("-");
+      const lo = Number(parts[0]);
+      const hi = parts[1] === "" ? Infinity : Number(parts[1]);
+      if (d.qty < lo || d.qty > hi) return false;
+    }
+    return true;
+  });
+  return rows.sort((a, b) => b.qty - a.qty);
+}
+
+function renderFilter() {
+  const rows = getFilteredRows();
+  $("#flt-info").textContent = "共 " + rows.length + " 条（按题数从高到低）";
+  if (!rows.length) {
+    $("#flt-table-wrap").innerHTML = '<div class="empty">暂无匹配数据</div>';
+    return;
+  }
+  const head = "<thead><tr><th>员工</th><th>项目</th><th>任务ID</th><th>来源表</th><th>题数</th><th>原始产值</th><th>记录数</th><th>完成天数</th><th>涉及月份</th></tr></thead>";
+  const body = rows.map((r) =>
+    "<tr><td>" + r.employee + "</td><td>" + r.project_label +
+    "</td><td>" + (r.task_id || "—") + "</td><td>" + r.sheet + "</td><td>" + fmt(r.qty) + "</td><td>" + fmt(r.raw) +
+    "</td><td>" + r.records + "</td><td>" + r.days + "</td><td>" + r.months.join("、") + "</td></tr>").join("");
+  $("#flt-table-wrap").innerHTML = "<table>" + head + "<tbody>" + body + "</tbody></table>";
+}
+
+function monthRank(m) {
+  if (/^\d{4}-\d{2}$/.test(m)) return 0;
+  if (m === "未标注日期") return 1;
+  return 2;
+}
+
+function renderAbnormal(stats) {
+  const items = [];
+  (stats && stats.skipped || []).forEach((s) => {
+    if (s.reason === "空行") return;
+    items.push({ sheet: s.sheet, row: s.row, emp: s.employee || "", proj: s.project || "", qty: s.qty, month: s.month || "—", date: s.date || null, orig_date: s.orig_date || null, type: "跳过", msg: s.reason + (s.note ? "｜补充：" + s.note : "") });
+  });
+  (stats && stats.warnings || []).forEach((w) => {
+    items.push({ sheet: w.sheet, row: w.row || "", emp: w.employee || "", proj: w.project || "", qty: w.qty, month: w.month || "—", date: w.date || null, orig_date: w.orig_date || null, type: w.type, msg: w.message });
+  });
+  if (!items.length) {
+    $("#flt-abnormal-wrap").innerHTML = '<div class="empty">没有异常数据。</div>';
+    $("#abn-count").textContent = "";
+    return;
+  }
+  items.sort((a, b) => {
+    const ra = monthRank(a.month), rb = monthRank(b.month);
+    if (ra !== rb) return ra - rb;
+    if (ra === 0 && a.month !== b.month) return a.month < b.month ? -1 : 1;
+    if (a.sheet !== b.sheet) return a.sheet < b.sheet ? -1 : 1;
+    return (a.row || 0) - (b.row || 0);
+  });
+  const months = Array.from(new Set(items.map((i) => i.month))).sort((a, b) => monthRank(a) - monthRank(b) || a.localeCompare(b));
+  const sel = $("#abn-month");
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">全部月份</option>' + months.map((m) => '<option value="' + m + '">' + m + "</option>").join("");
+  sel.value = prev;
+  const filtered = sel.value ? items.filter((i) => i.month === sel.value) : items;
+  $("#abn-count").textContent = "共 " + filtered.length + " 条（不含空行）";
+  const head = "<thead><tr><th>月份</th><th>日期</th><th>来源表</th><th>行号</th><th>员工</th><th>项目</th><th>数量</th><th>类型</th><th>说明</th></tr></thead>";
+  const body = filtered.map((r) => {
+    const dateTxt = r.orig_date ? (r.orig_date + " → " + (r.date || "—")) : (r.date || "—");
+    return "<tr><td>" + r.month + "</td><td>" + dateTxt + "</td><td>" + r.sheet + "</td><td>" + (r.row || "—") + "</td><td>" + (r.emp || "—") + "</td><td>" + (FLT.projLabel[r.proj] || r.proj || "—") +
+    "</td><td>" + (r.qty === null || r.qty === undefined ? "—" : fmt(r.qty)) + "</td><td>" + r.type +
+    "</td><td style='text-align:left'>" + r.msg + "</td></tr>";
+  }).join("");
+  $("#flt-abnormal-wrap").innerHTML = "<table>" + head + "<tbody>" + body + "</tbody></table>";
+}
+
+$("#abn-month").addEventListener("change", () => renderAbnormal(CURRENT.stats));
+
+function exportFilterCsv() {
+  const rows = getFilteredRows();
+  if (!rows.length) { alert("没有可导出的数据"); return; }
+  const header = ["员工", "项目", "任务ID", "来源表", "题数", "原始产值", "记录数", "完成天数", "涉及月份"];
+  const lines = [header.join(",")];
+  rows.forEach((r) => {
+    lines.push([r.employee, r.project_label, r.task_id || "", r.sheet, r.qty, r.raw, r.records, r.days, r.months.join("、")]
+      .map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(","));
+  });
+  const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "工作量筛选.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+["#flt-emp", "#flt-proj", "#flt-qty"].forEach((sel) => {
+  document.querySelector(sel).addEventListener("change", renderFilter);
+});
+
+$("#flt-month").addEventListener("change", () => loadFilterWorkload($("#flt-month").value));
+
+/* ---------- 单价 ---------- */
+let PRICE_MAP = {};
+
+const SHEET_DEFAULT_PRICE = {
+  "模型对战": 0.06,
+  "html评测": 0.7,
+  "Dpo arena 评测": 0.6,
+  "dcc年龄": 0.055,
+  "特殊运镜采集": 7,
+  "动态IP标志性动作采集": 0.8,
+};
+let SHEET_KEYS = {};
+
+async function loadPrices() {
+  try {
+    const d = await api("/api/prices");
+    PRICE_MAP = d.prices || {};
+    SHEET_KEYS = {};
+    d.projects.forEach((p) => {
+      (SHEET_KEYS[p.sheet || "未分类"] = SHEET_KEYS[p.sheet || "未分类"] || []).push(p.key);
+    });
+    const filter = ($("#price-filter").value || "").trim().toLowerCase();
+    const sheets = Object.keys(SHEET_KEYS);
+    let html = "";
+    let shown = 0;
+    let shownSheets = 0;
+    sheets.forEach((sheet) => {
+      if (filter && !sheet.toLowerCase().includes(filter)) return;
+      const keys = SHEET_KEYS[sheet];
+      const vals = keys.map((k) => PRICE_MAP[k]).filter((v) => v !== undefined && v !== null && v !== "");
+      let unified = "";
+      if (vals.length === 0) {
+        unified = (SHEET_DEFAULT_PRICE[sheet] !== undefined) ? SHEET_DEFAULT_PRICE[sheet] : "";
+      } else if (vals.every((v) => Math.abs(v - vals[0]) < 1e-9)) {
+        unified = vals[0];
+      }
+      shown += keys.length;
+      shownSheets++;
+      html += '<div class="price-group-title">' + sheet + "（" + keys.length + " 个项目 · 统一单价）</div>";
+      html += '<div class="price-row">' +
+        '<span style="min-width:180px">' + sheet + " 统一单价</span>" +
+        '<span class="tag">适用于本大类全部 ' + keys.length + " 个项目</span>" +
+        '<div style="flex:1"></div>' +
+        '<span class="tag">单价(元/题)</span>' +
+        '<input type="number" min="0" step="0.0001" data-sheet-price="' + sheet + '" value="' + unified + '">' +
+        "</div>";
+    });
+    $("#price-list").innerHTML = html || '<div class="empty">' + (filter ? "没有匹配的大类" : "请先在①上传并统计文件") + "</div>";
+    $("#price-count").textContent = "共 " + shownSheets + " 个大类，" + shown + " 个项目";
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+$("#price-filter").addEventListener("input", loadPrices);
+
+$("#save-prices-btn").addEventListener("click", async () => {
+  const prices = {};
+  document.querySelectorAll("[data-sheet-price]").forEach((inp) => {
+    const sheet = inp.dataset.sheetPrice;
+    if (inp.value === "") return;
+    const v = Number(inp.value);
+    (SHEET_KEYS[sheet] || []).forEach((k) => { prices[k] = v; });
+  });
+  try {
+    await api("/api/prices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prices }) });
+    alert("单价已保存（" + Object.keys(prices).length + " 个项目）");
+    loadPrices();
+  } catch (err) {
+    alert("保存失败：" + err.message);
+  }
+});
+
+/* ---------- 税前薪酬（按月） ---------- */
+async function loadTax(month) {
+  try {
+    const d = await api("/api/tax?month=" + encodeURIComponent(month || ""));
+    CURRENT.tax = d;
+    CURRENT.month = d.selected_month;
+    CURRENT.months = d.months;
+    // 月份 tabs
+    const tabs = $("#tax-month-tabs");
+    tabs.innerHTML = d.months.map((m) =>
+      '<div class="tab' + (m === d.selected_month ? " active" : "") + '" data-month="' + m + '">' + m + "</div>").join("");
+    tabs.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => loadTax(t.dataset.month)));
+    $("#tax-info").textContent = d.selected_month + " · " + d.employees.length + " 名员工";
+    const miss = d.missing_prices || [];
+    const missEl = $("#tax-missing");
+    if (miss.length) {
+      missEl.textContent = "以下项目尚未设置单价（相关金额按 0 计算，请先在②单价设置补全）：" + miss.join("、");
+      missEl.classList.remove("hidden");
+    } else {
+      missEl.classList.add("hidden");
+    }
+    const head = "<thead><tr><th>员工</th><th>项目金额合计（题数×单价）</th><th>异常表单统计金额（元）</th><th>应发税前薪酬（元）</th></tr></thead>";
+    const body = d.rows.map((r) =>
+      "<tr><td>" + r.employee + "</td><td>" + fmt(r.subtotal) + "</td>" +
+      "<td><input type='number' min='0' step='0.01' data-abn='" + r.employee + "' value='" + (r.abnormal || "") + "'></td>" +
+      "<td>" + fmt(r.pre_tax) + "</td></tr>").join("");
+    const sumSub = d.rows.reduce((a, r) => a + r.subtotal, 0);
+    const sumAbn = d.rows.reduce((a, r) => a + (r.abnormal || 0), 0);
+    const foot = "<tr class='row-total'><td>合计</td><td>" + fmt(sumSub) + "</td><td>" + fmt(sumAbn) + "</td><td>" + fmt(d.grand_total) + "</td></tr>";
+    $("#tax-table-wrap").innerHTML = "<table>" + head + "<tbody>" + body + foot + "</tbody></table>";
+    $("#tax-grand").textContent = fmt(d.grand_total);
+    document.querySelectorAll("[data-abn]").forEach((inp) => {
+      inp.addEventListener("input", () => {
+        const tr = inp.closest("tr");
+        const abn = Number(inp.value) || 0;
+        const sub = Number(tr.children[1].textContent.replace(/[^\d.\-]/g, "")) || 0;
+        tr.children[3].textContent = fmt(sub + abn);
+        updateTaxGrand();
+      });
+    });
+  } catch (err) {
+    $("#tax-table-wrap").innerHTML = '<div class="empty">' + err.message + "</div>";
+  }
+}
+
+function updateTaxGrand() {
+  let grand = 0;
+  document.querySelectorAll("#tax-table-wrap tbody tr").forEach((tr) => {
+    if (tr.classList.contains("row-total")) return;
+    const abn = Number((tr.children[2].querySelector("input") || {}).value) || 0;
+    const sub = Number(tr.children[1].textContent.replace(/[^\d.\-]/g, "")) || 0;
+    grand += sub + abn;
+  });
+  $("#tax-grand").textContent = fmt(grand);
+}
+
+$("#save-abn-btn").addEventListener("click", async () => {
+  const amounts = {};
+  document.querySelectorAll("[data-abn]").forEach((inp) => {
+    if (inp.value !== "") amounts[inp.dataset.abn] = Number(inp.value);
+  });
+  const month = (CURRENT.tax && CURRENT.tax.selected_month) || "";
+  try {
+    await api("/api/abnormal_amounts", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ month, amounts }) });
+    alert("异常金额已保存（" + month + "）");
+    loadTax(month);
+  } catch (err) {
+    alert("保存失败：" + err.message);
+  }
+});
+
+function exportTaxCsv() {
+  const rows = (CURRENT.tax && CURRENT.tax.rows) || [];
+  if (!rows.length) { alert("没有可导出的数据"); return; }
+  const month = (CURRENT.tax && CURRENT.tax.selected_month) || "";
+  const lines = [["月份", "员工", "项目金额合计", "异常金额", "应发税前薪酬"].join(",")];
+  rows.forEach((r) => {
+    lines.push([month, r.employee, r.subtotal, r.abnormal || "", r.pre_tax].map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(","));
+  });
+  lines.push(["", "合计", "", "", CURRENT.tax.grand_total].map((v) => '"' + String(v).replace(/"/g, '""') + '"').join(","));
+  const blob = new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "税前薪酬_" + month + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ---------- 导出 ---------- */
+function exportFile(kind, format) {
+  const month = CURRENT.month && CURRENT.months.includes(CURRENT.month) ? CURRENT.month : "";
+  const url = "/api/export?kind=" + kind + "&format=" + format + "&month=" + encodeURIComponent(month);
+  window.open(url, "_blank");
+}
+
+/* 初始化 */
+loadStats("");
+</script>
+</body>
+</html>

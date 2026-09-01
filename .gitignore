@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+prices.json
+abnormal_amounts.json
+启动地址.txt
+发布包/
+build/
+dist/
+*.spec
